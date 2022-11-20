@@ -4,8 +4,22 @@ use std::io::Write;
 use rand::Rng;
 use regex::Regex;
 use rand::seq::SliceRandom;
+use colored::Colorize;
 
 pub fn print_help() {
+    println!(
+"\
+Arguments:
+  --guess    Guess mode, where the AI tries to guess your number
+  --vguess   Guess mode, with a visualization of the search space
+  --help     Show this menu
+  --rules    Show game rules
+  default    Player vs. AI mode
+"
+    )
+}
+
+pub fn print_rules() {
     println!(
 "\
 Welcome to Toro y Vaca!\n
@@ -22,11 +36,10 @@ Rules:
 }
 
 pub fn run() {
-    println!("Toro y Vaca vs. AI mode");
     let mut human_player = HumanPlayer::new();
     let mut ai_player = AIPlayer::new();
 
-    'gamloop: loop {
+    'gameloop: loop {
         println!();
         loop {
             match human_player.ask() {
@@ -36,7 +49,7 @@ pub fn run() {
         
                     if feedback.info == Info::new(4, 0) {
                         println!("You won");
-                        break 'gamloop;
+                        break 'gameloop;
                     }
                     break;
                 },
@@ -71,7 +84,7 @@ pub fn run() {
     }
 }
 
-pub fn run_guesser() {
+pub fn run_guesser(visual: bool) {
     let human_player = HumanPlayer::new();
     let mut ai_player = AIPlayer::new();
 
@@ -94,7 +107,10 @@ pub fn run_guesser() {
                 println!("You lied to me!");
                 break;
             }
+        }
 
+        if visual {
+            ai_player.print_search_space();
         }
     }
 }
@@ -102,6 +118,7 @@ pub fn run_guesser() {
 pub struct Guess {
     val: [u16; 4]
 }
+
 
 impl Guess {
     pub fn generate() -> Guess {
@@ -211,11 +228,8 @@ struct HumanPlayer;
 
 impl HumanPlayer {
     pub fn new() -> HumanPlayer {
-        println!("Write down your number!\nPress 'Enter' to continue...");
-        let mut discard_input = String::new();
-        io::stdin()
-            .read_line(&mut discard_input)
-            .expect("Failed to read line");
+        println!("Write down your number!");
+        pause();
         HumanPlayer {}
     }
 }
@@ -295,6 +309,34 @@ impl AIPlayer {
     pub fn remaining_guesses(&self) -> usize {
         self.remaining_guesses.len()
     }
+
+    pub fn print_search_space(&self) {
+        let all_guesses: Vec<Guess> = Guess::all();
+        let all_guesses: Vec<String> = all_guesses.iter().map(|g| format!("{}", g)).collect();
+        let remaining_guesses: Vec<String> = self.remaining_guesses.iter().map(|g| format!("{}", g)).collect();
+        let asked_numbers: Vec<String> = self.collected_info.iter().map(|i| format!("{}", i.guess)).collect();
+
+        println!();
+        println!("{} / {}",
+            format!("{}", remaining_guesses.len()).green(),
+            format!("{}", all_guesses.len()).bright_black().dimmed(),
+        );
+        for (i,guess) in all_guesses.iter().enumerate() {
+            if i % 56 == 0 && i > 0 {
+                println!()
+            }
+            if remaining_guesses.contains(&guess) {
+                print!("{} ", guess.green());
+            }
+            else if asked_numbers.contains(&guess) {
+                print!("{} ", guess.cyan().dimmed());
+            }
+            else {
+                print!("{} ", guess.bright_black().dimmed());
+            }
+        }
+        println!();
+    }
 }
 
 impl Player for AIPlayer {
@@ -316,6 +358,14 @@ impl Player for AIPlayer {
     }
 }
 
+
+pub fn pause() {
+    println!("Press 'Enter' to continue...");
+    let mut discard_input = String::new();
+    io::stdin()
+        .read_line(&mut discard_input)
+        .expect("Failed to read line");
+}
 
 
 #[cfg(test)]
