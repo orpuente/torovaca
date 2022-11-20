@@ -182,8 +182,7 @@ impl fmt::Display for Guess {
     }
 }
 
-#[derive(Debug)]
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Info {
     toros: u16,
     vacas: u16
@@ -244,11 +243,8 @@ impl Player for HumanPlayer {
             .read_line(&mut guess)
             .expect("Failed to read line");
 
-        match guess.trim().parse::<u16>() {
-            Ok(n) => {
-                return Guess::from(n)
-            }
-            Err(_) => ()
+        if let Ok(n) = guess.trim().parse::<u16>() {
+            return Guess::from(n)
         }
         
         None
@@ -325,10 +321,10 @@ impl AIPlayer {
             if i % 56 == 0 && i > 0 {
                 println!()
             }
-            if remaining_guesses.contains(&guess) {
+            if remaining_guesses.contains(guess) {
                 print!("{} ", guess.green());
             }
-            else if asked_numbers.contains(&guess) {
+            else if asked_numbers.contains(guess) {
                 print!("{} ", guess.cyan().dimmed());
             }
             else {
@@ -336,6 +332,12 @@ impl AIPlayer {
             }
         }
         println!();
+    }
+}
+
+impl Default for AIPlayer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
