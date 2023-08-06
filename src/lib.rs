@@ -1,5 +1,6 @@
 use std::fmt;
 use std::io;
+use std::cmp;
 use std::io::Write;
 use rand::Rng;
 use regex::Regex;
@@ -73,7 +74,7 @@ pub fn run() {
                     break;
                 }
 
-                ai_player.recieve_feedback(ans);
+                ai_player.receive_feedback(ans);
             },
             None => {
                 println!("You lied to me!");
@@ -101,7 +102,7 @@ pub fn run_guesser(visual: bool) {
                     break;
                 }
 
-                ai_player.recieve_feedback(ans);
+                ai_player.receive_feedback(ans);
             },
             None => {
                 println!("You lied to me!");
@@ -115,6 +116,7 @@ pub fn run_guesser(visual: bool) {
     }
 }
 
+#[derive(PartialEq)]
 pub struct Guess {
     val: [u16; 4]
 }
@@ -182,6 +184,12 @@ impl fmt::Display for Guess {
     }
 }
 
+impl Clone for Guess {
+    fn clone(&self) -> Self {
+        Guess { val: [self.val[0], self.val[1], self.val[2], self.val[3]] }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct Info {
     toros: u16,
@@ -220,7 +228,7 @@ impl fmt::Display for Answer {
 pub trait Player {
     fn ask(&mut self) -> Option<Guess>;
     fn give_feedback(&self, guess: Guess) -> Answer;
-    fn recieve_feedback(&mut self, ans: Answer);
+    fn receive_feedback(&mut self, ans: Answer);
 }
 
 struct HumanPlayer;
@@ -279,7 +287,7 @@ impl Player for HumanPlayer {
         }
     }
 
-    fn recieve_feedback(&mut self, ans: Answer) {
+    fn receive_feedback(&mut self, ans: Answer) {
         println!("{ans}");
     }
 }
@@ -341,9 +349,58 @@ impl Default for AIPlayer {
     }
 }
 
+fn minimax(remaining: &Vec<Guess>) -> Option<Guess>{    
+    if remaining.is_empty() {
+        return None;
+    }
+
+    let mut best_guess = remaining.get(0).unwrap();
+    let mut best_guess_size = 100000;
+    let all = Guess::all();
+
+    let search_space = if remaining.len() < 16 || 400 < remaining.len() {
+        remaining
+    } else {
+        &all
+    };
+
+    for guess in search_space.into_iter() {
+        let mut max = 0;
+
+        for secret in remaining.into_iter() {
+            let info = guess.compare(secret);
+            let size = remaining.into_iter().filter(|g| g.compare(guess) == info).count();
+            max = cmp::max(max, size);
+
+            if max > best_guess_size {
+                break;
+            }
+        }
+
+        if max < best_guess_size {
+            best_guess_size = max;
+            best_guess = guess;
+        }
+    }
+
+    Some(best_guess.clone())
+}
+
 impl Player for AIPlayer {
     fn ask(&mut self) -> Option<Guess> {
-        self.remaining_guesses.pop()
+        if self.remaining_guesses() > 500 {
+            return self.remaining_guesses.pop()
+        }
+
+        let guess = minimax(&self.remaining_guesses);
+        if let Some(guess) = &guess {
+            let index = self.remaining_guesses.iter().position(|x| x == guess);
+            if let Some(index) = index {
+                self.remaining_guesses.remove(index);
+            }
+        }
+
+        guess
     }
 
     fn give_feedback(&self, guess: Guess) -> Answer {
@@ -351,7 +408,7 @@ impl Player for AIPlayer {
         Answer::new(guess, info)
     }
 
-    fn recieve_feedback(&mut self, ans: Answer) {
+    fn receive_feedback(&mut self, ans: Answer) {
         self.remaining_guesses = self.remaining_guesses
             .drain(..)
             .filter(|g| g.compare(&ans.guess) == ans.info)
